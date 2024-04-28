@@ -612,14 +612,9 @@ pub fn print_soln(block_header: &Vec<u8>, trx :&Vec<u8> ,txids: &Vec<Vec<u8>>) {
 
     // Write the transaction IDs
     // file.write_all(b"Transaction IDs:\n").expect("Failed to write transaction IDs header");
-    let mut unf = true;
     for txid in txids {
         let revtrx = txid.to_vec();
         // revtrx.reverse();
-        if unf {
-            unf = false;
-            continue;
-        }
         file.write_all(&hex::encode(revtrx).as_bytes()).expect("Failed to write transaction ID");
         file.write_all(b"\n").expect("Failed to write newline");
     }
