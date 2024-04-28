@@ -463,11 +463,11 @@ pub fn create_coinbase_trx() -> (Vec<u8>,Vec<u8>) {
     // 01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff0804233fa04e028b12ffffffff0130490b2a010000004341047eda6bd04fb27cab6e7c28c99b94977f073e912f25d1ff7165d9c95cd9bbe6da7e7ad7f2acb09e0ced91705f7616af53bee51a238b7dc527f2be0aa60469d140ac00000000
     let coinbase_trx = "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff0804233fa04e028b12ffffffff0130490b2a010000004341047eda6bd04fb27cab6e7c28c99b94977f073e912f25d1ff7165d9c95cd9bbe6da7e7ad7f2acb09e0ced91705f7616af53bee51a238b7dc527f2be0aa60469d140ac00000000".to_string();
     let trans_data = decode(coinbase_trx).unwrap();
-    let mut txid = double_sha256(&trans_data);
-    txid.reverse();
+    let txid = double_sha256(&trans_data);
     return (trans_data,txid);
-
 }
+
+
 pub fn calculate_txid(transaction: &Transaction) -> Vec<u8> {
     
     let mut serialized_data = Vec::new();
@@ -506,8 +506,7 @@ pub fn calculate_txid(transaction: &Transaction) -> Vec<u8> {
         serialized_data.extend(&scriptpubkey);
     }
     serialized_data.extend(&transaction.locktime.to_le_bytes());
-    let mut txid  = double_sha256(&serialized_data);
-    txid.reverse();
+    let txid  = double_sha256(&serialized_data);
     txid
 }
 
@@ -545,15 +544,27 @@ pub fn calculate_merkle_root(tx_ids: &[Vec<u8>]) -> Vec<u8> {
 
     while leaves.len() > 1 {
         let mut new_leaves = Vec::with_capacity(leaves.len() / 2 + leaves.len() % 2);
+
         for chunks in leaves.chunks(2) {
             let mut combined = Vec::new();
-            for chunk in chunks {
+
+            if chunks.len() == 2 {
+                // Handle the case when there are two leaves in the chunk
+                for chunk in chunks {
+                    combined.extend(chunk.iter());
+                }
+            } else {
+                // Handle the case when there is only one leaf in the chunk
+                let chunk = &chunks[0];
+                combined.extend(chunk.iter());
                 combined.extend(chunk.iter());
             }
+            print_hex_string(&combined);
             let double_sha256 = double_sha256(&combined);
             new_leaves.push(double_sha256);
         }
-        leaves = new_leaves; // Move ownership of new_leaves to leaves
+
+        leaves = new_leaves;
     }
 
     leaves.pop().unwrap()
@@ -599,8 +610,15 @@ pub fn print_soln(block_header: &Vec<u8>, trx :&Vec<u8> ,txids: &Vec<Vec<u8>>) {
 
     // Write the transaction IDs
     // file.write_all(b"Transaction IDs:\n").expect("Failed to write transaction IDs header");
+    let mut unf = true;
     for txid in txids {
-        file.write_all(&hex::encode(txid).as_bytes()).expect("Failed to write transaction ID");
+        let mut revtrx = txid.to_vec();
+        revtrx.reverse();
+        if unf {
+            unf = false;
+            continue;
+        }
+        file.write_all(&hex::encode(revtrx).as_bytes()).expect("Failed to write transaction ID");
         file.write_all(b"\n").expect("Failed to write newline");
     }
 
