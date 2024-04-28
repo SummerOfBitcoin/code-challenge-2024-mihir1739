@@ -33,6 +33,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     let merkle_root = calculate_merkle_root(&txids);
     let block_header = create_block_header(merkle_root);
     let (block,_nonce) = mine_block(&block_header);
-    print_soln(&block, txids);
+    print_soln(&block, &txids);
     Ok(())
 }

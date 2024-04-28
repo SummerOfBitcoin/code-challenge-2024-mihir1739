@@ -4,7 +4,9 @@ use sha2::{Digest as DG, Sha256};
 use std::collections::HashMap;
 use std::vec;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::fs::{File, OpenOptions};
 use std::io::prelude::*;
+use std::path::PathBuf;
 
 pub mod structs;
 pub mod utils;
@@ -571,10 +573,30 @@ pub fn mine_block(block_header: &Vec<u8>) -> (Vec<u8>,u32) {
 }
 
 
-pub fn print_soln(block_header: &Vec<u8>,txids: Vec<Vec<u8>>)
-{
-    print_hex_string(&block_header);
-    for txid in &txids {
-        print_hex_string(&txid);
+pub fn print_soln(block_header: &Vec<u8>, txids: &Vec<Vec<u8>>) {
+    // Get the current directory
+    let current_dir = std::env::current_dir().expect("Failed to get current directory");
+
+    // Navigate to the parent directory
+    let parent_dir = current_dir.parent().expect("Failed to get parent directory");
+
+    // Create the file path
+    let file_path = parent_dir.join("output.txt");
+
+    // Create the file and write to it
+    let mut file = File::create(&file_path).expect("Failed to create file");
+
+    // Write the block header
+    // file.write_all(b"Block Header: ").expect("Failed to write block header");
+    file.write_all(&hex::encode(block_header).as_bytes()).expect("Failed to write block header");
+    // file.write_all(b"\n").expect("Failed to write newline");
+
+    // Write the transaction IDs
+    // file.write_all(b"Transaction IDs:\n").expect("Failed to write transaction IDs header");
+    for txid in txids {
+        file.write_all(&hex::encode(txid).as_bytes()).expect("Failed to write transaction ID");
+        file.write_all(b"\n").expect("Failed to write newline");
     }
+
+    // println!("File written: {:?}", file_path);
 }
