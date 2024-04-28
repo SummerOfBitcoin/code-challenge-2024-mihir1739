@@ -6,10 +6,10 @@ use std::fs::read_dir;
 fn main() -> Result<(), Box<dyn Error>> {
     let directory_path = "../mempool";
     let mut txids: Vec<Vec<u8>> = Vec::new();
-    // let mut transactions: Vec<u8> = Vec::new();
-    let crx = create_coinbase_trx();
-    txids.push(crx.1);
-    // transactions.extend(crx.0);
+    let mut transactions: Vec<u8> = Vec::new();
+    let (trx,crx) = create_coinbase_trx();
+    transactions.extend(&crx);
+    txids.push(crx);
     for entry in read_dir(directory_path)? {
         let entry = entry?;
         let path = entry.path();
@@ -25,6 +25,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                 // transactions.extend(serialized_data);
                 // print!("Transaction Id ");
                 let txis = transaction.get_txid();
+                
+                transactions.extend(&txis);
                 txids.push(txis);
                 // print_hex_string(&txis);
             }
@@ -34,6 +36,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     let block_header = create_block_header(merkle_root);
     let (block,_nonce) = mine_block(&block_header);
     // print_hex_string(&block);
-    print_soln(&block, &txids);
+    print_soln(&block,&trx, &txids);
     Ok(())
 }
