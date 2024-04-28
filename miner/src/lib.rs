@@ -563,7 +563,8 @@ pub fn mine_block(block_header: &Vec<u8>) -> (Vec<u8>,u32) {
         let mut block_data = block_header.to_vec();
         block_data.extend_from_slice(&nonce.to_le_bytes());
         
-        let double_hash = double_sha256(&block_data);
+        let mut double_hash = double_sha256(&block_data);
+        double_hash.reverse();
         if double_hash.as_slice() < &DIFFICULTY_TARGET[..] {
             return (block_data,nonce);
         }
