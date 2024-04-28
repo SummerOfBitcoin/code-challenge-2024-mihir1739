@@ -559,7 +559,7 @@ pub fn calculate_merkle_root(tx_ids: &[Vec<u8>]) -> Vec<u8> {
                 combined.extend(chunk.iter());
                 combined.extend(chunk.iter());
             }
-            print_hex_string(&combined);
+            // print_hex_string(&combined);
             let double_sha256 = double_sha256(&combined);
             new_leaves.push(double_sha256);
         }
@@ -567,7 +567,9 @@ pub fn calculate_merkle_root(tx_ids: &[Vec<u8>]) -> Vec<u8> {
         leaves = new_leaves;
     }
 
-    leaves.pop().unwrap()
+    let mut merel = leaves.pop().unwrap();
+    merel.reverse();
+    merel
 }
 
 pub fn mine_block(block_header: &Vec<u8>) -> (Vec<u8>,u32) {
