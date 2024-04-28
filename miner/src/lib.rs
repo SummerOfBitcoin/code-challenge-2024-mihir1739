@@ -534,6 +534,7 @@ pub fn create_block_header(merkle_root: Vec<u8>) -> Vec<u8>
     let mut compact_target = decode(target).unwrap();
     compact_target.reverse();
     blockheader.extend(&compact_target);
+    // print_hex_string(&blockheader);
     blockheader
 }
 
@@ -558,14 +559,13 @@ pub fn calculate_merkle_root(tx_ids: &[Vec<u8>]) -> Vec<u8> {
 
 pub fn mine_block(block_header: &Vec<u8>) -> (Vec<u8>,u32) {
     let mut nonce: u32 = 0;
-    let block_head = block_header.to_vec();
     loop {
         let mut block_data = block_header.to_vec();
         block_data.extend_from_slice(&nonce.to_le_bytes());
       
         let double_hash = double_sha256(&block_data);
         if double_hash.as_slice() < &DIFFICULTY_TARGET[..] {
-            return (block_head,nonce);
+            return (block_data,nonce);
         }
 
         nonce += 1;
@@ -589,7 +589,7 @@ pub fn print_soln(block_header: &Vec<u8>, txids: &Vec<Vec<u8>>) {
     // Write the block header
     // file.write_all(b"Block Header: ").expect("Failed to write block header");
     file.write_all(&hex::encode(block_header).as_bytes()).expect("Failed to write block header");
-    // file.write_all(b"\n").expect("Failed to write newline");
+    file.write_all(b"\n").expect("Failed to write newline");
 
     // Write the transaction IDs
     // file.write_all(b"Transaction IDs:\n").expect("Failed to write transaction IDs header");
