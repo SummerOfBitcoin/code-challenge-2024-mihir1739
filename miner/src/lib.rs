@@ -463,7 +463,8 @@ pub fn create_coinbase_trx() -> (Vec<u8>,Vec<u8>) {
     // 01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff0804233fa04e028b12ffffffff0130490b2a010000004341047eda6bd04fb27cab6e7c28c99b94977f073e912f25d1ff7165d9c95cd9bbe6da7e7ad7f2acb09e0ced91705f7616af53bee51a238b7dc527f2be0aa60469d140ac00000000
     let coinbase_trx = "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff0804233fa04e028b12ffffffff0130490b2a010000004341047eda6bd04fb27cab6e7c28c99b94977f073e912f25d1ff7165d9c95cd9bbe6da7e7ad7f2acb09e0ced91705f7616af53bee51a238b7dc527f2be0aa60469d140ac00000000".to_string();
     let trans_data = decode(coinbase_trx).unwrap();
-    let txid = double_sha256(&trans_data);
+    let mut txid = double_sha256(&trans_data);
+    txid.reverse();
     return (trans_data,txid);
 
 }
@@ -505,7 +506,8 @@ pub fn calculate_txid(transaction: &Transaction) -> Vec<u8> {
         serialized_data.extend(&scriptpubkey);
     }
     serialized_data.extend(&transaction.locktime.to_le_bytes());
-    let txid = double_sha256(&serialized_data);
+    let mut txid  = double_sha256(&serialized_data);
+    txid.reverse();
     txid
 }
 
