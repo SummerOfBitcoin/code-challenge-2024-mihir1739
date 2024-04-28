@@ -567,8 +567,8 @@ pub fn calculate_merkle_root(tx_ids: &[Vec<u8>]) -> Vec<u8> {
         leaves = new_leaves;
     }
 
-    let mut merel = leaves.pop().unwrap();
-    merel.reverse();
+    let merel = leaves.pop().unwrap();
+    // merel.reverse();
     merel
 }
 
