@@ -567,8 +567,8 @@ pub fn calculate_merkle_root(tx_ids: &[Vec<u8>]) -> Vec<u8> {
         leaves = new_leaves;
     }
 
-    let mut merel = leaves.pop().unwrap();
-    merel.reverse();
+    let merel = leaves.pop().unwrap();
+    // merel.reverse();
     merel
 }
 
@@ -614,8 +614,8 @@ pub fn print_soln(block_header: &Vec<u8>, trx :&Vec<u8> ,txids: &Vec<Vec<u8>>) {
     // file.write_all(b"Transaction IDs:\n").expect("Failed to write transaction IDs header");
     let mut unf = true;
     for txid in txids {
-        let mut revtrx = txid.to_vec();
-        revtrx.reverse();
+        let revtrx = txid.to_vec();
+        // revtrx.reverse();
         if unf {
             unf = false;
             continue;
