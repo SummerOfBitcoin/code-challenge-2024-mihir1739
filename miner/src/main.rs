@@ -43,7 +43,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
     }
-    transactions.sort_by(|a, b| b.cmp(a));
+    transactions.sort_by(|a, b| a.cmp(b));
     let (trans,mut txids) = populate(&transactions);
     let wtxid_merkle = calculate_wtxid(trans);
     let (trx, crx) = create_coinbase_trx(wtxid_merkle);

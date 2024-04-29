@@ -652,6 +652,7 @@ pub fn populate(trxns: &Vec<GasedTransaction>) -> (Vec<Vec<u8>>,Vec<Vec<u8>>)
     {
         a.push(trxn.data.clone());
         b.push(trxn.txid.clone());
+        // println!("weight {} weight so far{}",trxn.weight,cum_weight);
         cum_weight += trxn.weight;
         if cum_weight > 4000000 {
             a.pop();
