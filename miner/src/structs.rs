@@ -164,7 +164,11 @@ impl PartialEq for GasedTransaction {
 impl Ord for GasedTransaction {
     fn cmp(&self, other: &Self) -> Ordering {
         // Compare gas in descending order
-
+        if self.gas > other.gas {
+            return Ordering::Greater;
+        } else if self.gas < other.gas {
+            return Ordering::Less;
+        }
         // If gas is equal, compare weight in ascending order
         if self.weight < other.weight {
             return Ordering::Less;
@@ -172,11 +176,6 @@ impl Ord for GasedTransaction {
             return Ordering::Greater;
         }
 
-        if self.gas > other.gas {
-            return Ordering::Greater;
-        } else if self.gas < other.gas {
-            return Ordering::Less;
-        }
         // If both gas and weight are equal, consider them equal
         Ordering::Equal
     }
