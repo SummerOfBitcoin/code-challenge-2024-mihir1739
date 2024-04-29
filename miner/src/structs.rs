@@ -128,7 +128,7 @@ impl Transaction {
             base_size += 32; // Previous TXID
             base_size += 4; // Previous output index
             base_size += get_compact_size(vin.scriptsig.len() / 2).len(); // ScriptSig length
-            base_size += vin.scriptsig.len(); // ScriptSig
+            base_size += vin.scriptsig.len() / 2; // ScriptSig
             base_size += 4; // Sequence
 
             if let Some(witness) = &vin.witness {
@@ -136,7 +136,7 @@ impl Transaction {
                 witness_size += get_compact_size(witness.0.len()).len(); // Witness element count
                 for element in &witness.0 {
                     witness_size += get_compact_size(element.len() / 2).len(); // Witness element length
-                    witness_size += element.len(); // Witness element
+                    witness_size += element.len() / 2 // Witness element
                 }
             }
         }
@@ -144,7 +144,7 @@ impl Transaction {
         for vout in &self.vout {
             base_size += 8; // Value
             base_size += get_compact_size(vout.scriptpubkey.len() / 2).len(); // ScriptPubKey length
-            base_size += vout.scriptpubkey.len(); // ScriptPubKey
+            base_size += vout.scriptpubkey.len() / 2; // ScriptPubKey
         }
         // print!("{} ",base_size);
         let weight = 4 * base_size + witness_size;
