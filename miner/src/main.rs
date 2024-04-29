@@ -18,7 +18,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let path = entry.path();
         
         if path.is_file() && path.extension().unwrap() == "json" {
-            if trans < 1777 {
+            if trans < 2777 {
                 let transaction = Transaction::parse_from_file(path.to_str().unwrap())?;
 
                 // println!("--- Parsed file: {}", path.display());
