@@ -1,17 +1,17 @@
 use hex::{self, decode, encode};
 use secp256k1::{ecdsa::Signature, Message, PublicKey, Secp256k1};
 use sha2::{Digest as DG, Sha256};
-use std::collections::HashMap;
-use std::vec;
-use std::time::{SystemTime, UNIX_EPOCH};
-use std::fs::{File, OpenOptions};
+use structs::GasedTransaction;
+use std::collections::{HashMap,HashSet};
+use std::fs::File;
 use std::io::prelude::*;
-use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
+use std::vec;
 
 pub mod structs;
 pub mod utils;
-use crate::structs::{Prevout, Transaction, Vin, Vout};
-use crate::utils::{compute_hash160, double_sha256, print_hex_string,ripemd160_hash};
+use crate::structs::{Transaction, Vin};
+use crate::utils::{compute_hash160, double_sha256, print_hex_string, ripemd160_hash};
 // Define the Bitcoin opcodes and their corresponding operations
 const _OPCODES: &[(&str, u8)] = &[
     ("OP_0", 0x00),
@@ -366,38 +366,35 @@ pub fn validate_transaction(transaction: &Transaction) -> Result<bool, String> {
             let script = format!("{} {}", vin.scriptsig_asm, vin.prevout.scriptpubkey_asm);
             let message = prepare_signature_message(transaction, i);
             match validate_script(&script, message) {
-                Ok(()) => {
-                    match &vin.witness {
-                        Some(_wit) => flag = true,
-                        None => _temp += 1,
-                    }
-                }
+                Ok(()) => match &vin.witness {
+                    Some(_wit) => flag = true,
+                    None => _temp += 1,
+                },
                 Err(err) => return Err(err),
             }
         } else if vin.prevout.scriptpubkey_type == "v0_p2wpkh" {
             match validate_p2wpkh(transaction, vin, i) {
-                Ok(()) => {
-                    match &vin.witness {
-                        Some(_wit) => flag = true,
-                        None => _temp += 1,
-                    }
-                }
+                Ok(()) => match &vin.witness {
+                    Some(_wit) => flag = true,
+                    None => _temp += 1,
+                },
                 Err(err) => return Err(err),
             }
-        } 
-        // else if vin.prevout.scriptpubkey_type == "v1_p2tr" {
-        //     // println!("P2TR transactions are valid!");
-        //     match &vin.witness {
-        //         Some(_wit) => flag = true,
-        //         None => _temp += 1,
-        //     }
-        // } 
+        }
+        else if vin.prevout.scriptpubkey_type == "v1_p2tr" {
+            // println!("P2TR transactions are valid!");
+            match &vin.witness {
+                Some(_wit) => flag = true,
+                None => _temp += 1,
+            }
+        }
         else {
             return Err("Transaction not supported for now".to_string());
         }
     }
     return Ok(flag);
 }
+
 
 pub fn serialize_transation(transaction: &Transaction, issegwit: bool) -> Vec<u8> {
     let mut serialized_data = Vec::new();
@@ -462,9 +459,11 @@ pub fn serialize_transation(transaction: &Transaction, issegwit: bool) -> Vec<u8
     serialized_data
 }
 
-pub fn create_coinbase_trx(wtx_merkle: Vec<u8>) -> (Vec<u8>,Vec<u8>) {
+pub fn create_coinbase_trx(wtx_merkle: Vec<u8>) -> (Vec<u8>, Vec<u8>) {
     let mut next_half = wtx_merkle.clone();
-    next_half.extend(decode("0000000000000000000000000000000000000000000000000000000000000000").unwrap());
+    next_half.extend(
+        decode("0000000000000000000000000000000000000000000000000000000000000000").unwrap(),
+    );
     let sha_next = double_sha256(&next_half);
     let part = encode(sha_next);
     // 01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff0804233fa04e028b12ffffffff0130490b2a010000004341047eda6bd04fb27cab6e7c28c99b94977f073e912f25d1ff7165d9c95cd9bbe6da7e7ad7f2acb09e0ced91705f7616af53bee51a238b7dc527f2be0aa60469d140ac00000000
@@ -472,12 +471,10 @@ pub fn create_coinbase_trx(wtx_merkle: Vec<u8>) -> (Vec<u8>,Vec<u8>) {
     let coinbase_txid_data = format!("01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff2503233708184d696e656420627920416e74506f6f6c373946205b8160a4256c0000946e0100ffffffff02f595814a000000001976a914edf10a7fac6b32e24daa5305c723f3de58db1bc888ac0000000000000000266a24aa21a9ed{}00000000",part);
     let trans_data = decode(coinbase_trx).unwrap();
     let txid = double_sha256(&decode(coinbase_txid_data).unwrap());
-    return (trans_data,txid);
+    return (trans_data, txid);
 }
 
-
 pub fn calculate_txid(transaction: &Transaction) -> Vec<u8> {
-    
     let mut serialized_data = Vec::new();
 
     // Serialize the transaction header
@@ -503,7 +500,7 @@ pub fn calculate_txid(transaction: &Transaction) -> Vec<u8> {
         serialized_data.extend(&vin.sequence.to_le_bytes());
     }
 
-    serialized_data.extend(&get_compact_size(transaction.vout.len() ));
+    serialized_data.extend(&get_compact_size(transaction.vout.len()));
     // Serialize the outputs
     for vout in &transaction.vout {
         // Serialize the value
@@ -515,19 +512,18 @@ pub fn calculate_txid(transaction: &Transaction) -> Vec<u8> {
         serialized_data.extend(&scriptpubkey);
     }
     serialized_data.extend(&transaction.locktime.to_le_bytes());
-    let txid  = double_sha256(&serialized_data);
+    let txid = double_sha256(&serialized_data);
     txid
 }
 
-pub fn create_block_header(merkle_root: Vec<u8>) -> Vec<u8> 
-{
-    let mut blockheader: Vec<u8> = Vec::new(); 
+pub fn create_block_header(merkle_root: Vec<u8>) -> Vec<u8> {
+    let mut blockheader: Vec<u8> = Vec::new();
     // 0x20000000
     blockheader.push(0x20);
     blockheader.push(0x00);
     blockheader.push(0x00);
     blockheader.push(0x00);
-    
+
     for _ in 0..32 {
         blockheader.push(0x00)
     }
@@ -539,7 +535,7 @@ pub fn create_block_header(merkle_root: Vec<u8>) -> Vec<u8>
         .as_secs() as u32;
     blockheader.extend_from_slice(&timestamp.to_le_bytes());
 
-    // Compact representation of the target 
+    // Compact representation of the target
     let target = "1f00ffff".to_string();
     let mut compact_target = decode(target).unwrap();
     compact_target.reverse();
@@ -581,29 +577,30 @@ pub fn calculate_merkle_root(tx_ids: &[Vec<u8>]) -> Vec<u8> {
     merel
 }
 
-pub fn mine_block(block_header: &Vec<u8>) -> (Vec<u8>,u32) {
+pub fn mine_block(block_header: &Vec<u8>) -> (Vec<u8>, u32) {
     let mut nonce: u32 = 0;
     loop {
         let mut block_data = block_header.to_vec();
         block_data.extend_from_slice(&nonce.to_le_bytes());
-        
+
         let mut double_hash = double_sha256(&block_data);
         double_hash.reverse();
         if double_hash.as_slice() < &DIFFICULTY_TARGET[..] {
-            return (block_data,nonce);
+            return (block_data, nonce);
         }
 
         nonce += 1;
     }
 }
 
-
-pub fn print_soln(block_header: &Vec<u8>, trx :&Vec<u8> ,txids: &Vec<Vec<u8>>) {
+pub fn print_soln(block_header: &Vec<u8>, trx: &Vec<u8>, txids: &Vec<Vec<u8>>) {
     // Get the current directory
     let current_dir = std::env::current_dir().expect("Failed to get current directory");
 
     // Navigate to the parent directory
-    let parent_dir = current_dir.parent().expect("Failed to get parent directory");
+    let parent_dir = current_dir
+        .parent()
+        .expect("Failed to get parent directory");
 
     // Create the file path
     let file_path = parent_dir.join("output.txt");
@@ -613,10 +610,12 @@ pub fn print_soln(block_header: &Vec<u8>, trx :&Vec<u8> ,txids: &Vec<Vec<u8>>) {
 
     // Write the block header
     // file.write_all(b"Block Header: ").expect("Failed to write block header");
-    file.write_all(&hex::encode(block_header).as_bytes()).expect("Failed to write block header");
+    file.write_all(&hex::encode(block_header).as_bytes())
+        .expect("Failed to write block header");
     file.write_all(b"\n").expect("Failed to write newline");
 
-    file.write_all(&hex::encode(trx).as_bytes()).expect("Failed to write block header");
+    file.write_all(&hex::encode(trx).as_bytes())
+        .expect("Failed to write block header");
     file.write_all(b"\n").expect("Failed to write newline");
 
     // Write the transaction IDs
@@ -624,21 +623,41 @@ pub fn print_soln(block_header: &Vec<u8>, trx :&Vec<u8> ,txids: &Vec<Vec<u8>>) {
     for txid in txids {
         let mut revtrx = txid.to_vec();
         revtrx.reverse();
-        file.write_all(&hex::encode(revtrx).as_bytes()).expect("Failed to write transaction ID");
+        file.write_all(&hex::encode(revtrx).as_bytes())
+            .expect("Failed to write transaction ID");
         file.write_all(b"\n").expect("Failed to write newline");
     }
 
     // println!("File written: {:?}", file_path);
 }
 
-pub fn calculate_wtxid(transactions: Vec<Vec<u8>>) -> Vec<u8>
-{
-
+pub fn calculate_wtxid(transactions: Vec<Vec<u8>>) -> Vec<u8> {
     let mut wtxids: Vec<Vec<u8>> = Vec::new();
-    wtxids.push(decode("0000000000000000000000000000000000000000000000000000000000000000").unwrap());
+    wtxids
+        .push(decode("0000000000000000000000000000000000000000000000000000000000000000").unwrap());
     for txn in transactions.iter().rev() {
         wtxids.push(double_sha256(&txn));
     }
     let wtx_merkle_root = calculate_merkle_root(&wtxids);
     wtx_merkle_root
+}
+
+
+pub fn populate(trxns: &Vec<GasedTransaction>) -> (Vec<Vec<u8>>,Vec<Vec<u8>>)
+{
+    let mut a: Vec<Vec<u8>> = Vec::new();
+    let mut b: Vec<Vec<u8>> = Vec::new();
+    let mut cum_weight = 0;
+    for trxn in trxns.iter()
+    {
+        a.push(trxn.data.clone());
+        b.push(trxn.txid.clone());
+        cum_weight += trxn.weight;
+        if cum_weight > 4000000 {
+            a.pop();
+            b.pop();
+            break;
+        }
+    }
+    (a,b)
 }

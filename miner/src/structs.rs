@@ -1,7 +1,8 @@
 use serde::Deserialize;
 use std::fs::File;
+use std::cmp::Ordering;
 use serde_json::from_reader;
-use crate::{calculate_txid, validate_transaction,serialize_transation};
+use crate::{calculate_txid, validate_transaction,serialize_transation,get_compact_size};
 use crate::utils::get_current_unix_timestamp_u32;
 // Defining the structs
 #[derive(Debug, Deserialize)]
@@ -44,6 +45,15 @@ pub struct Transaction {
     pub vout: Vec<Vout>,
 }
 
+#[derive(Debug, Deserialize, Eq)]
+pub struct GasedTransaction {
+    pub gas: u64,
+    pub weight: u32,
+    pub data: Vec<u8>,
+    pub txid: Vec<u8>,
+    pub is_segwit: bool
+}
+
 
 impl Transaction {
     pub fn parse_from_file(file_path: &str) -> Result<Transaction, std::io::Error> {
@@ -64,16 +74,9 @@ impl Transaction {
     pub fn valid_trans(&self) -> (bool,bool) {
 
         // Preliminary test to find the total input > total output 
-        let mut input = 0;
-        let mut output = 0;
-        for vin in self.vin.iter() {
-            input += vin.prevout.value;
-        }
-        for vout in self.vout.iter() {
-            output += vout.value;
-        }
+        let gas = self.calculate_gas();
         // println!("Input {}, Output {}, Gas {}", input, output, input - output);
-        if input <= output {
+        if gas <= 0 {
             return (false,false)
         }
         if self.locktime != 0 
@@ -104,5 +107,89 @@ impl Transaction {
     }
     pub fn get_txid(&self) -> Vec<u8> {
         return calculate_txid(self);
+    }
+
+    pub fn calculate_gas(&self) -> u64 {
+        let mut input = 0;
+        let mut output = 0;
+        for vin in self.vin.iter() {
+            input += vin.prevout.value;
+        }
+        for vout in self.vout.iter() {
+            output += vout.value;
+        }
+        input - output
+    }
+
+    pub fn calculate_tx_weight(&self) -> u32 {
+    let mut base_size = 4; // Version
+    base_size += get_compact_size(self.vin.len()).len(); // Input count
+    base_size += get_compact_size(self.vout.len()).len(); // Output count
+    base_size += 4; // Locktime
+
+    let mut witness_size = 0;
+
+    for vin in &self.vin {
+        base_size += 32; // Previous TXID
+        base_size += 4; // Previous output index
+        base_size += get_compact_size(vin.scriptsig.len()/2).len(); // ScriptSig length
+        base_size += vin.scriptsig.len(); // ScriptSig
+        base_size += 4; // Sequence
+
+        if let Some(witness) = &vin.witness {
+            witness_size += 2; // Witness count
+            witness_size += get_compact_size(witness.0.len()).len(); // Witness element count
+            for element in &witness.0 {
+                witness_size += get_compact_size(element.len()/2).len(); // Witness element length
+                witness_size += element.len(); // Witness element
+            }
+        }
+    }
+
+    for vout in &self.vout {
+        base_size += 8; // Value
+        base_size += get_compact_size(vout.scriptpubkey.len()/2).len(); // ScriptPubKey length
+        base_size += vout.scriptpubkey.len(); // ScriptPubKey
+    }
+
+    let weight = 4 * base_size + witness_size;
+    weight as u32
+}
+}
+
+
+// Implement the Eq trait for Transaction
+impl PartialEq for GasedTransaction {
+    fn eq(&self, other: &Self) -> bool {
+        self.gas == other.gas && self.weight == other.weight
+    }
+}
+
+// Implement the Ord trait for Transaction
+impl Ord for GasedTransaction {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // Compare gas in descending order
+        if self.gas > other.gas {
+            return Ordering::Greater;
+        } else if self.gas < other.gas {
+            return Ordering::Less;
+        }
+
+        // If gas is equal, compare weight in ascending order
+        if self.weight < other.weight {
+            return Ordering::Less;
+        } else if self.weight > other.weight {
+            return Ordering::Greater;
+        }
+
+        // If both gas and weight are equal, consider them equal
+        Ordering::Equal
+    }
+}
+
+// Implement the PartialOrd trait for Transaction
+impl PartialOrd for GasedTransaction {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
