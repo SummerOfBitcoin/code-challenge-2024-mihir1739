@@ -1,6 +1,6 @@
 use miner::structs::Transaction;
 use miner::utils::print_hex_string;
-use miner::{calculate_merkle_root, create_block_header, create_coinbase_trx, mine_block, print_soln};
+use miner::{calculate_merkle_root, create_block_header, create_coinbase_trx, mine_block, print_soln, get_compact_size};
 use std::error::Error;
 use std::fs::read_dir;
 fn main() -> Result<(), Box<dyn Error>> {
@@ -19,16 +19,16 @@ fn main() -> Result<(), Box<dyn Error>> {
             // println!("--- Parsed file: {}", path.display());
             let isegwit = transaction.valid_trans();
             if isegwit.0 {
-                // let serialized_data = transaction.get_data(isegwit.1);
+                let serialized_data = transaction.get_data(isegwit.1);
                 // print!("Hashed Data ");
                 // print_hex_string(&serialized_data);
-                // transactions.extend(serialized_data);
+                transactions.extend(serialized_data);
                 // print!("Transaction Id ");
                 let txis = transaction.get_txid();
                 
                 transactions.extend(&txis);
-                txids.push(txis);
                 // print_hex_string(&txis);
+                txids.push(txis);
             }
         }
     }

@@ -39,7 +39,7 @@ fn prepare_signature_message(transaction: &Transaction, input_index: usize) -> V
     message.extend(&transaction.version.to_le_bytes());
 
     // Serialize input count
-    let input_count_bytes = serialize_compact_size(transaction.vin.len() as u64);
+    let input_count_bytes = get_compact_size(transaction.vin.len());
     message.extend(&input_count_bytes);
 
     // Serialize inputs
@@ -52,11 +52,11 @@ fn prepare_signature_message(transaction: &Transaction, input_index: usize) -> V
         if i == input_index {
             // For the input being verified, replace the signature script with an empty script
             let scriptpubkey_bytes = hex::decode(input.prevout.scriptpubkey.clone()).unwrap();
-            let script_len_bytes = serialize_compact_size(scriptpubkey_bytes.len() as u64);
+            let script_len_bytes = get_compact_size(scriptpubkey_bytes.len());
             message.extend(&script_len_bytes);
             message.extend(scriptpubkey_bytes.iter());
         } else {
-            let script_len_bytes = serialize_compact_size(0);
+            let script_len_bytes = get_compact_size(0);
             message.extend(&script_len_bytes);
         }
 
@@ -65,14 +65,14 @@ fn prepare_signature_message(transaction: &Transaction, input_index: usize) -> V
 
     // Serialize output count
 
-    let output_count_bytes = serialize_compact_size(transaction.vout.len() as u64);
+    let output_count_bytes = get_compact_size(transaction.vout.len());
     message.extend(&output_count_bytes);
     for (_i, output) in transaction.vout.iter().enumerate() {
         let mut bytes = [0u8; 8];
         bytes.as_mut().copy_from_slice(&output.value.to_le_bytes());
         message.extend_from_slice(&bytes);
         let pubkey_bytes = hex::decode(output.scriptpubkey.clone()).unwrap();
-        let script_len_bytes = serialize_compact_size(pubkey_bytes.len() as u64);
+        let script_len_bytes = get_compact_size(pubkey_bytes.len());
         message.extend(&script_len_bytes);
         message.extend(&pubkey_bytes);
     }
@@ -124,21 +124,22 @@ fn construct_p2wpkh_scriptcode(pubkey: &[u8]) -> Vec<u8> {
     script
 }
 
-fn serialize_compact_size(size: u64) -> Vec<u8> {
-    if size < 253 {
-        vec![size as u8]
-    } else if size <= u64::from(u16::max_value()) {
-        let mut bytes = vec![0xfd];
-        bytes.extend(&(size as u16).to_le_bytes());
-        bytes
-    } else if size <= u64::from(u32::max_value()) {
-        let mut bytes = vec![0xfe];
-        bytes.extend(&(size as u32).to_le_bytes());
-        bytes
+pub fn get_compact_size(len: usize) -> Vec<u8> {
+    let script_len = len;
+    if script_len <= 0xfc {
+        vec![script_len as u8]
+    } else if script_len <= 0xffff {
+        let mut compact_size = vec![0xfd];
+        compact_size.extend_from_slice(&(script_len as u16).to_le_bytes());
+        compact_size
+    } else if script_len <= 0xffff_ffff {
+        let mut compact_size = vec![0xfe];
+        compact_size.extend_from_slice(&(script_len as u32).to_le_bytes());
+        compact_size
     } else {
-        let mut bytes = vec![0xff];
-        bytes.extend(&size.to_le_bytes());
-        bytes
+        let mut compact_size = vec![0xff];
+        compact_size.extend_from_slice(&(script_len as u64).to_le_bytes());
+        compact_size
     }
 }
 
@@ -318,7 +319,7 @@ pub fn validate_p2wpkh(
                     bytes.as_mut().copy_from_slice(&output.value.to_le_bytes());
                     outs.extend_from_slice(&bytes);
                     let pubkey_bytes = hex::decode(output.scriptpubkey.clone()).unwrap();
-                    let script_len_bytes = serialize_compact_size(pubkey_bytes.len() as u64);
+                    let script_len_bytes = get_compact_size(pubkey_bytes.len());
                     outs.extend(&script_len_bytes);
                     outs.extend(&pubkey_bytes);
                 }
@@ -406,7 +407,7 @@ pub fn serialize_transation(transaction: &Transaction, issegwit: bool) -> Vec<u8
         serialized_data.push(0x01);
     }
 
-    serialized_data.extend(&serialize_compact_size(transaction.vin.len() as u64));
+    serialized_data.extend(&get_compact_size(transaction.vin.len()));
     // Serialize the inputs
     for vin in &transaction.vin {
         // Serialize the txid and vout
@@ -414,19 +415,19 @@ pub fn serialize_transation(transaction: &Transaction, issegwit: bool) -> Vec<u8
         tx_id.reverse();
         serialized_data.extend(tx_id);
         serialized_data.extend(&vin.vout.to_le_bytes());
-
-        serialized_data.extend(serialize_compact_size(vin.scriptsig.len() as u64));
+        let scriptsig_bytes = decode(&vin.scriptsig).unwrap();
+        serialized_data.extend(get_compact_size(scriptsig_bytes.len()));
 
         // Serialize the scriptsig (for non-SegWit inputs)
         if vin.witness.is_none() {
-            serialized_data.extend(decode(&vin.scriptsig).unwrap());
+            serialized_data.extend(scriptsig_bytes);
         }
 
         // Serialize the sequence
         serialized_data.extend(&vin.sequence.to_le_bytes());
     }
 
-    serialized_data.extend(&serialize_compact_size(transaction.vout.len() as u64));
+    serialized_data.extend(&get_compact_size(transaction.vout.len()));
     // Serialize the outputs
     for vout in &transaction.vout {
         // Serialize the value
@@ -434,7 +435,7 @@ pub fn serialize_transation(transaction: &Transaction, issegwit: bool) -> Vec<u8
 
         // Serialize the scriptpubkey
         let scriptpubkey = hex::decode(&vout.scriptpubkey).unwrap();
-        serialized_data.extend(&serialize_compact_size(scriptpubkey.len() as u64));
+        serialized_data.extend(&get_compact_size(scriptpubkey.len()));
         serialized_data.extend(&scriptpubkey);
     }
 
@@ -442,10 +443,10 @@ pub fn serialize_transation(transaction: &Transaction, issegwit: bool) -> Vec<u8
         for vin in &transaction.vin {
             match &vin.witness {
                 Some(wit) => {
-                    serialized_data.extend(&serialize_compact_size(wit.0.len() as u64));
+                    serialized_data.extend(&get_compact_size(wit.0.len()));
                     for item in &wit.0 {
                         let witness_item = decode(item).unwrap();
-                        serialized_data.extend(&serialize_compact_size(witness_item.len() as u64));
+                        serialized_data.extend(&get_compact_size(witness_item.len()));
                         serialized_data.extend(&witness_item);
                     }
                 }
@@ -474,7 +475,7 @@ pub fn calculate_txid(transaction: &Transaction) -> Vec<u8> {
 
     // Serialize the transaction header
     serialized_data.extend(&transaction.version.to_le_bytes());
-    serialized_data.extend(&serialize_compact_size(transaction.vin.len() as u64));
+    serialized_data.extend(&get_compact_size(transaction.vin.len()));
     // Serialize the inputs
     for vin in &transaction.vin {
         // Serialize the txid and vout
@@ -483,18 +484,19 @@ pub fn calculate_txid(transaction: &Transaction) -> Vec<u8> {
         serialized_data.extend(tx_id);
         serialized_data.extend(&vin.vout.to_le_bytes());
 
-        serialized_data.extend(serialize_compact_size(vin.scriptsig.len() as u64));
+        let scriptsig_bytes = decode(&vin.scriptsig).unwrap();
+        serialized_data.extend(get_compact_size(scriptsig_bytes.len()));
 
         // Serialize the scriptsig (for non-SegWit inputs)
         if vin.witness.is_none() {
-            serialized_data.extend(decode(&vin.scriptsig).unwrap());
+            serialized_data.extend(scriptsig_bytes);
         }
 
         // Serialize the sequence
         serialized_data.extend(&vin.sequence.to_le_bytes());
     }
 
-    serialized_data.extend(&serialize_compact_size(transaction.vout.len() as u64));
+    serialized_data.extend(&get_compact_size(transaction.vout.len() ));
     // Serialize the outputs
     for vout in &transaction.vout {
         // Serialize the value
@@ -502,7 +504,7 @@ pub fn calculate_txid(transaction: &Transaction) -> Vec<u8> {
 
         // Serialize the scriptpubkey
         let scriptpubkey = hex::decode(&vout.scriptpubkey).unwrap();
-        serialized_data.extend(&serialize_compact_size(scriptpubkey.len() as u64));
+        serialized_data.extend(&get_compact_size(scriptpubkey.len()));
         serialized_data.extend(&scriptpubkey);
     }
     serialized_data.extend(&transaction.locktime.to_le_bytes());
