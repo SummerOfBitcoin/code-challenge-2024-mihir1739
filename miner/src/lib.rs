@@ -384,13 +384,15 @@ pub fn validate_transaction(transaction: &Transaction) -> Result<bool, String> {
                 }
                 Err(err) => return Err(err),
             }
-        } else if vin.prevout.scriptpubkey_type == "v1_p2tr" {
-            // println!("P2TR transactions are valid!");
-            match &vin.witness {
-                Some(_wit) => flag = true,
-                None => _temp += 1,
-            }
-        } else {
+        } 
+        // else if vin.prevout.scriptpubkey_type == "v1_p2tr" {
+        //     // println!("P2TR transactions are valid!");
+        //     match &vin.witness {
+        //         Some(_wit) => flag = true,
+        //         None => _temp += 1,
+        //     }
+        // } 
+        else {
             return Err("Transaction not supported for now".to_string());
         }
     }
